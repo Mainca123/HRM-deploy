@@ -1,0 +1,36 @@
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.docs
+
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# NuGet
+*.nupkg
+packages/
+
+# Logs
+*.log
+
+# Test results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+
+# Tài liệu nội bộ
+**/docs/
