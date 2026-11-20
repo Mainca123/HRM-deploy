@@ -2,6 +2,7 @@ using AttendanceManagement.API.Data;
 using AttendanceManagement.API.DTOs.Attendance;
 using AttendanceManagement.API.DTOs.Dashboard;
 using AttendanceManagement.API.DTOs.Leave;
+using AttendanceManagement.API.Entities;
 using AttendanceManagement.API.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
 

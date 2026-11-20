@@ -1922,6 +1922,10 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ModifiedUserName).HasMaxLength(15);
             entity.Property(e => e.Reason).HasMaxLength(250);
             entity.Property(e => e.ToDate).HasColumnType("datetime");
+
+            entity.HasOne(d => d.Employee).WithMany(p => p.RegisterLateEarlies)
+                .HasForeignKey(d => d.EmployeeId)
+                .HasConstraintName("FK_RegisterLateEarly_Employee");
         });
 
         modelBuilder.Entity<RegisterNoAttendance>(entity =>

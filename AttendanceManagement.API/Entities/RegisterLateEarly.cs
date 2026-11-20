@@ -24,4 +24,6 @@ public partial class RegisterLateEarly
     public DateTime? ModifiedDate { get; set; }
 
     public string? ModifiedUserName { get; set; }
+
+    public virtual Employee Employee { get; set; } = null!;
 }

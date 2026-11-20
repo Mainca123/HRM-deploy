@@ -53,7 +53,7 @@ public class DashboardController : ControllerBase
     }
 
     /// <summary>
-    /// P3.2: Dashboard Quản lý phòng ban (Quân số đi làm/vắng mặt hôm nay, đơn nghỉ & giải trình cần duyệt)
+    /// P3.2: Dashboard Quản lý phòng ban (Quân số đi làm/vắng mặt hôm nay, đơn nghỉ và giải trình cần duyệt)
     /// </summary>
     [HttpGet("manager")]
     [Authorize(Roles = "1,2,4,6,8,ADMIN,HR,MANAGER,Administration")]
@@ -71,7 +71,7 @@ public class DashboardController : ControllerBase
     }
 
     /// <summary>
-    /// P3.3: Dashboard Ban Giám đốc & Phòng Nhân sự (Toàn cảnh quân số công ty, tỷ lệ chuyên cần, biến động nhân sự)
+    /// P3.3: Dashboard Ban Giám đốc và Phòng Nhân sự (Toàn cảnh quân số công ty, tỷ lệ chuyên cần, biến động nhân sự)
     /// </summary>
     [HttpGet("hr")]
     [Authorize(Roles = "1,4,ADMIN,HR,Administration")]

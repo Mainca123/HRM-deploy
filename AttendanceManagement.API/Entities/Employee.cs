@@ -103,6 +103,8 @@ public partial class Employee
 
     public virtual ICollection<RegisterAbsence> RegisterAbsences { get; set; } = new List<RegisterAbsence>();
 
+    public virtual ICollection<RegisterLateEarly> RegisterLateEarlies { get; set; } = new List<RegisterLateEarly>();
+
     public virtual ICollection<RegisterAttendanceItem> RegisterAttendanceItems { get; set; } = new List<RegisterAttendanceItem>();
 
     public virtual ICollection<RegisterNoAttendance> RegisterNoAttendances { get; set; } = new List<RegisterNoAttendance>();

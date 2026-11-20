@@ -3,7 +3,7 @@ using AttendanceManagement.API.DTOs.Dashboard;
 namespace AttendanceManagement.API.Repositories.Interfaces;
 
 /// <summary>
-/// Giao diện tầng truy xuất dữ liệu Thống kê & Báo cáo tổng hợp
+/// Giao diện tầng truy xuất dữ liệu Thống kê và Báo cáo tổng hợp
 /// </summary>
 public interface IReportRepository
 {
