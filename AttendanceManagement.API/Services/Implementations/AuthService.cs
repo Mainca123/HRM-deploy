@@ -215,8 +215,13 @@ public class AuthService : IAuthService
     private (string Token, DateTime ExpiresAt) GenerateJwtToken(User user, int? employeeId, string? fullName)
     {
         var jwtSettings = _config.GetSection("JwtSettings");
-        var secretKey = Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!);
-        var expiryDays = int.Parse(jwtSettings["ExpiryDays"] ?? "7");
+        var secretStr = _config["JWT_SECRET"] ?? jwtSettings["SecretKey"]!;
+        var issuerStr = _config["JWT_ISSUER"] ?? jwtSettings["Issuer"] ?? "AttendanceManagement_API";
+        var audienceStr = _config["JWT_AUDIENCE"] ?? jwtSettings["Audience"] ?? "AttendanceManagement_Client";
+        var expiryStr = _config["JWT_EXPIRY_DAYS"] ?? jwtSettings["ExpiryDays"] ?? "7";
+
+        var secretKey = Encoding.UTF8.GetBytes(secretStr);
+        var expiryDays = int.Parse(expiryStr);
         var expiresAt = DateTime.UtcNow.AddDays(expiryDays);
 
         var claims = new List<Claim>
@@ -237,8 +242,8 @@ public class AuthService : IAuthService
         {
             Subject = new ClaimsIdentity(claims),
             Expires = expiresAt,
-            Issuer = jwtSettings["Issuer"],
-            Audience = jwtSettings["Audience"],
+            Issuer = issuerStr,
+            Audience = audienceStr,
             SigningCredentials = new SigningCredentials(
                 new SymmetricSecurityKey(secretKey),
                 SecurityAlgorithms.HmacSha256Signature

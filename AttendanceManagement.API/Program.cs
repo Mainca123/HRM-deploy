@@ -16,11 +16,22 @@ var builder = WebApplication.CreateBuilder(args);
 // ============================================================================
 // 1. KẾT NỐI CƠ SỞ DỮ LIỆU (TiDB CLOUD / MySQL)
 // ============================================================================
-// Lấy chuỗi kết nối từ biến môi trường (ConnectionStrings__DefaultConnection) hoặc appsettings.json
+// Hỗ trợ đọc trực tiếp từ các biến môi trường ngắn gọn trong file .env (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var dbHost = builder.Configuration["DB_HOST"];
+if (!string.IsNullOrWhiteSpace(dbHost))
+{
+    var dbPort = builder.Configuration["DB_PORT"] ?? "4000";
+    var dbName = builder.Configuration["DB_NAME"] ?? "hrm_db";
+    var dbUser = builder.Configuration["DB_USER"];
+    var dbPass = builder.Configuration["DB_PASS"];
+    var dbSsl  = builder.Configuration["DB_SSL"] ?? "VerifyFull";
+    connectionString = $"Server={dbHost};Port={dbPort};Database={dbName};Uid={dbUser};Pwd={dbPass};SslMode={dbSsl};";
+}
+
 if (string.IsNullOrWhiteSpace(connectionString))
 {
-    throw new InvalidOperationException("Chưa cấu hình biến môi trường 'ConnectionStrings__DefaultConnection'.");
+    throw new InvalidOperationException("Chưa cấu hình DB_HOST/DB_USER/DB_PASS trong file .env");
 }
 
 // Đăng ký AppDbContext vào bộ chứa Dependency Injection với MySQL / TiDB Cloud
@@ -60,10 +71,13 @@ builder.Services.AddScoped<IReportService, ReportService>();
 // 3. CẤU HÌNH XÁC THỰC BẰNG JWT BEARER TOKEN
 // ============================================================================
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var jwtSecret = jwtSettings["SecretKey"];
+var jwtSecret = builder.Configuration["JWT_SECRET"] ?? jwtSettings["SecretKey"];
+var jwtIssuer = builder.Configuration["JWT_ISSUER"] ?? jwtSettings["Issuer"] ?? "AttendanceManagement_API";
+var jwtAudience = builder.Configuration["JWT_AUDIENCE"] ?? jwtSettings["Audience"] ?? "AttendanceManagement_Client";
+
 if (string.IsNullOrWhiteSpace(jwtSecret))
 {
-    throw new InvalidOperationException("Chưa cấu hình biến môi trường 'JwtSettings__SecretKey'.");
+    throw new InvalidOperationException("Chưa cấu hình biến môi trường 'JWT_SECRET'.");
 }
 var secretKey = Encoding.UTF8.GetBytes(jwtSecret);
 
@@ -82,9 +96,9 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(secretKey), // Kiểm tra chữ ký hợp lệ
         ValidateIssuer = true,
-        ValidIssuer = jwtSettings["Issuer"], // Kiểm tra máy chủ phát hành
+        ValidIssuer = jwtIssuer, // Kiểm tra máy chủ phát hành
         ValidateAudience = true,
-        ValidAudience = jwtSettings["Audience"], // Kiểm tra phía nhận token
+        ValidAudience = jwtAudience, // Kiểm tra phía nhận token
         ValidateLifetime = true, // Kiểm tra hạn dùng của token
         ClockSkew = TimeSpan.Zero // Loại bỏ độ trễ thời gian mặc định (5 phút)
     };
