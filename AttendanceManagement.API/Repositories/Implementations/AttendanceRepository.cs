@@ -4,6 +4,7 @@ using AttendanceManagement.API.DTOs.Common;
 using AttendanceManagement.API.Entities;
 using AttendanceManagement.API.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace AttendanceManagement.API.Repositories.Implementations;
 
@@ -70,6 +71,7 @@ public class AttendanceRepository : IAttendanceRepository
             .AsNoTracking()
             .Include(t => t.Employee)
             .Include(t => t.Shift)
+                .ThenInclude(s => s.ShiftDetails)
             .Where(t => t.WorkingDay == workingDay);
 
         if (!string.IsNullOrWhiteSpace(departmentId))
@@ -149,6 +151,7 @@ public class AttendanceRepository : IAttendanceRepository
             .AsNoTracking()
             .Include(t => t.Employee)
             .Include(t => t.Shift)
+                .ThenInclude(s => s.ShiftDetails)
             .Where(t => t.EmployeeId == employeeId && t.WorkingDay >= startDate && t.WorkingDay <= endDate)
             .OrderByDescending(t => t.WorkingDay)
             .ToListAsync();
@@ -182,18 +185,22 @@ public class AttendanceRepository : IAttendanceRepository
             ? Math.Round((t.TimeOut.Value - t.TimeIn.Value).TotalHours, 1)
             : null;
 
-        if (t.TimeIn.HasValue && t.Shift?.NormalTimeIn.HasValue == true)
+        var shiftDetail = t.Shift != null && t.Shift.ShiftDetails != null && t.Shift.ShiftDetails.Any()
+            ? t.Shift.ShiftDetails.OrderByDescending(d => d.FromDate).FirstOrDefault()
+            : null;
+
+        if (t.TimeIn.HasValue && shiftDetail?.NormalTimeIn.HasValue == true)
         {
-            var normalInTime = t.Shift.NormalTimeIn.Value.TimeOfDay;
-            var graceMinutes = t.Shift.LateComingMinutes ?? 0;
+            var normalInTime = shiftDetail.NormalTimeIn.Value.TimeOfDay;
+            var graceMinutes = shiftDetail.LateComing ?? 0;
             var diff = (int)(t.TimeIn.Value.TimeOfDay - normalInTime).TotalMinutes;
             dto.LateMinutes = diff > graceMinutes ? diff : 0;
         }
 
-        if (t.TimeOut.HasValue && t.Shift?.NormalTimeOut.HasValue == true)
+        if (t.TimeOut.HasValue && shiftDetail?.NormalTimeOut.HasValue == true)
         {
-            var normalOutTime = t.Shift.NormalTimeOut.Value.TimeOfDay;
-            var graceMinutes = t.Shift.EarlyReturningMinutes ?? 0;
+            var normalOutTime = shiftDetail.NormalTimeOut.Value.TimeOfDay;
+            var graceMinutes = shiftDetail.EarlyReturning ?? 0;
             var diff = (int)(normalOutTime - t.TimeOut.Value.TimeOfDay).TotalMinutes;
             dto.EarlyMinutes = diff > graceMinutes ? diff : 0;
         }
