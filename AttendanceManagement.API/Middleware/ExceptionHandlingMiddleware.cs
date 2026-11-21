@@ -61,14 +61,10 @@ public class ExceptionHandlingMiddleware
                 break;
 
             default:
-                // Nếu đang ở môi trường Development, hiển thị chi tiết Exception để dễ debug
-                if (_env.IsDevelopment())
+                errors.Add(exception.Message);
+                if (exception.InnerException != null)
                 {
-                    errors.Add(exception.Message);
-                    if (!string.IsNullOrEmpty(exception.StackTrace))
-                    {
-                        errors.Add(exception.StackTrace);
-                    }
+                    errors.Add(exception.InnerException.Message);
                 }
                 break;
         }

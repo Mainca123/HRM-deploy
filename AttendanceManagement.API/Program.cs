@@ -222,11 +222,11 @@ app.UseAuthorization();  // 2. Kiểm tra quyền truy cập (Admin, HR, Manager
 app.MapControllers();
 
 // Endpoint Ping nhẹ (hỗ trợ cả GET và HEAD cho UptimeRobot, không truy vấn DB, không cần Token) để giữ server Render không bị ngủ
-app.MapMethods("/ping", new[] { "GET", "HEAD" }, () => Results.Ok(new { status = "ok", message = "pong", timestamp = DateTime.Now }))
+app.MapMethods("/ping", new[] { "GET", "HEAD" }, () => Results.Ok(new { status = "ok", message = "pong", version = "v1.1-history-fix", timestamp = DateTime.Now }))
    .AllowAnonymous()
    .WithTags("Health Check");
 
-app.MapMethods("/api/ping", new[] { "GET", "HEAD" }, () => Results.Ok(new { status = "ok", message = "pong", timestamp = DateTime.Now }))
+app.MapMethods("/api/ping", new[] { "GET", "HEAD" }, () => Results.Ok(new { status = "ok", message = "pong", version = "v1.1-history-fix", timestamp = DateTime.Now }))
    .AllowAnonymous()
    .WithTags("Health Check");
 
