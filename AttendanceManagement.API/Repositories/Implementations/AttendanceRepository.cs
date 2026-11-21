@@ -88,32 +88,40 @@ public class AttendanceRepository : IAttendanceRepository
 
         var totalCount = await query.CountAsync();
 
-        var items = await query
+        var rawItems = await query
             .OrderBy(t => t.EmployeeId)
             .Skip((pageIndex - 1) * pageSize)
             .Take(pageSize)
-            .Select(t => new TimeInTimeOutDto
+            .ToListAsync();
+
+        var empIds = rawItems.Select(t => t.EmployeeId).Distinct().ToList();
+        var deptDict = (await _context.EmployeeDepartments
+            .AsNoTracking()
+            .Include(ed => ed.Department)
+            .Where(ed => empIds.Contains(ed.EmployeeId) && ed.ToDate == null)
+            .ToListAsync())
+            .GroupBy(ed => ed.EmployeeId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(ed => ed.FromDate).Select(ed => ed.Department?.Name).FirstOrDefault());
+
+        var items = rawItems.Select(t =>
+        {
+            var dto = new TimeInTimeOutDto
             {
                 EmployeeId = t.EmployeeId,
-                EmployeeCode = t.Employee.Code,
-                EmployeeFullName = t.Employee.FullName,
-                DepartmentName = _context.EmployeeDepartments
-                    .Where(ed => ed.EmployeeId == t.EmployeeId && ed.ToDate == null)
-                    .OrderByDescending(ed => ed.FromDate)
-                    .Select(ed => ed.Department != null ? ed.Department.Name : null)
-                    .FirstOrDefault(),
+                EmployeeCode = t.Employee?.Code,
+                EmployeeFullName = t.Employee?.FullName ?? string.Empty,
+                DepartmentName = deptDict.TryGetValue(t.EmployeeId, out var dName) ? dName : null,
                 WorkingDay = t.WorkingDay,
                 ShiftId = t.ShiftId,
-                ShiftName = t.Shift.Name,
+                ShiftName = t.Shift?.Name ?? t.ShiftId,
                 TimeIn = t.TimeIn,
                 TimeOut = t.TimeOut,
                 Status = t.Status,
-                Notes = t.Notes,
-                WorkingHours = t.TimeIn.HasValue && t.TimeOut.HasValue
-                    ? Math.Round((t.TimeOut.Value - t.TimeIn.Value).TotalHours, 1)
-                    : null
-            })
-            .ToListAsync();
+                Notes = t.Notes
+            };
+            PopulateShiftAnalysis(dto, t);
+            return dto;
+        }).ToList();
 
         return new PagedResultDto<TimeInTimeOutDto>
         {
@@ -129,36 +137,66 @@ public class AttendanceRepository : IAttendanceRepository
         var startDate = new DateTime(year, month, 1);
         var endDate = startDate.AddMonths(1).AddTicks(-1);
 
-        var records = await _context.TimeInTimeOuts
+        var empDept = await _context.EmployeeDepartments
+            .AsNoTracking()
+            .Include(ed => ed.Department)
+            .Where(ed => ed.EmployeeId == employeeId && ed.ToDate == null)
+            .OrderByDescending(ed => ed.FromDate)
+            .Select(ed => ed.Department != null ? ed.Department.Name : null)
+            .FirstOrDefaultAsync();
+
+        var rawList = await _context.TimeInTimeOuts
             .AsNoTracking()
             .Include(t => t.Employee)
             .Include(t => t.Shift)
             .Where(t => t.EmployeeId == employeeId && t.WorkingDay >= startDate && t.WorkingDay <= endDate)
             .OrderByDescending(t => t.WorkingDay)
-            .Select(t => new TimeInTimeOutDto
+            .ToListAsync();
+
+        var records = rawList.Select(t =>
+        {
+            var dto = new TimeInTimeOutDto
             {
                 EmployeeId = t.EmployeeId,
-                EmployeeCode = t.Employee.Code,
-                EmployeeFullName = t.Employee.FullName,
-                DepartmentName = _context.EmployeeDepartments
-                    .Where(ed => ed.EmployeeId == t.EmployeeId && ed.ToDate == null)
-                    .OrderByDescending(ed => ed.FromDate)
-                    .Select(ed => ed.Department != null ? ed.Department.Name : null)
-                    .FirstOrDefault(),
+                EmployeeCode = t.Employee?.Code,
+                EmployeeFullName = t.Employee?.FullName ?? string.Empty,
+                DepartmentName = empDept,
                 WorkingDay = t.WorkingDay,
                 ShiftId = t.ShiftId,
-                ShiftName = t.Shift.Name,
+                ShiftName = t.Shift?.Name ?? t.ShiftId,
                 TimeIn = t.TimeIn,
                 TimeOut = t.TimeOut,
                 Status = t.Status,
-                Notes = t.Notes,
-                WorkingHours = t.TimeIn.HasValue && t.TimeOut.HasValue
-                    ? Math.Round((t.TimeOut.Value - t.TimeIn.Value).TotalHours, 1)
-                    : null
-            })
-            .ToListAsync();
+                Notes = t.Notes
+            };
+            PopulateShiftAnalysis(dto, t);
+            return dto;
+        }).ToList();
 
         return records;
+    }
+
+    private static void PopulateShiftAnalysis(TimeInTimeOutDto dto, TimeInTimeOut t)
+    {
+        dto.WorkingHours = t.TimeIn.HasValue && t.TimeOut.HasValue
+            ? Math.Round((t.TimeOut.Value - t.TimeIn.Value).TotalHours, 1)
+            : null;
+
+        if (t.TimeIn.HasValue && t.Shift?.NormalTimeIn.HasValue == true)
+        {
+            var normalInTime = t.Shift.NormalTimeIn.Value.TimeOfDay;
+            var graceMinutes = t.Shift.LateComingMinutes ?? 0;
+            var diff = (int)(t.TimeIn.Value.TimeOfDay - normalInTime).TotalMinutes;
+            dto.LateMinutes = diff > graceMinutes ? diff : 0;
+        }
+
+        if (t.TimeOut.HasValue && t.Shift?.NormalTimeOut.HasValue == true)
+        {
+            var normalOutTime = t.Shift.NormalTimeOut.Value.TimeOfDay;
+            var graceMinutes = t.Shift.EarlyReturningMinutes ?? 0;
+            var diff = (int)(normalOutTime - t.TimeOut.Value.TimeOfDay).TotalMinutes;
+            dto.EarlyMinutes = diff > graceMinutes ? diff : 0;
+        }
     }
 
     public async Task<TimeInTimeOut?> GetTodayTimeRecordAsync(int employeeId, DateTime workingDay, string? shiftId = null)
