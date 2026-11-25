@@ -50,22 +50,26 @@ public class UserRepository : IUserRepository
 
     public async Task CreateUserWithEmployeeAsync(User user, UserEmployee userEmployee)
     {
-        using var transaction = await _context.Database.BeginTransactionAsync();
-        try
+        var strategy = _context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
 
-            _context.UserEmployees.Add(userEmployee);
-            await _context.SaveChangesAsync();
+                _context.UserEmployees.Add(userEmployee);
+                await _context.SaveChangesAsync();
 
-            await transaction.CommitAsync();
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        });
     }
 
     public async Task UpdatePasswordAsync(User user, string newHashedPassword)
@@ -201,72 +205,80 @@ public class UserRepository : IUserRepository
 
     public async Task UpdateUserWithEmployeeAsync(User user, int? newEmployeeId)
     {
-        using var transaction = await _context.Database.BeginTransactionAsync();
-        try
+        var strategy = _context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            // 1. Cập nhật thông tin User
-            _context.Users.Update(user);
-
-            // 2. Cập nhật bảng UserEmployee
-            var existingUserEmp = await _context.UserEmployees.FirstOrDefaultAsync(ue => ue.UserName == user.Name);
-            if (newEmployeeId.HasValue)
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                if (existingUserEmp != null)
+                // 1. Cập nhật thông tin User
+                _context.Users.Update(user);
+
+                // 2. Cập nhật bảng UserEmployee
+                var existingUserEmp = await _context.UserEmployees.FirstOrDefaultAsync(ue => ue.UserName == user.Name);
+                if (newEmployeeId.HasValue)
                 {
-                    existingUserEmp.EmployeeId = newEmployeeId.Value;
+                    if (existingUserEmp != null)
+                    {
+                        existingUserEmp.EmployeeId = newEmployeeId.Value;
+                    }
+                    else
+                    {
+                        _context.UserEmployees.Add(new UserEmployee
+                        {
+                            UserName = user.Name,
+                            EmployeeId = newEmployeeId.Value
+                        });
+                    }
                 }
                 else
                 {
-                    _context.UserEmployees.Add(new UserEmployee
+                    // Gỡ liên kết nhân viên nếu truyền null
+                    if (existingUserEmp != null)
                     {
-                        UserName = user.Name,
-                        EmployeeId = newEmployeeId.Value
-                    });
+                        _context.UserEmployees.Remove(existingUserEmp);
+                    }
                 }
-            }
-            else
-            {
-                // Gỡ liên kết nhân viên nếu truyền null
-                if (existingUserEmp != null)
-                {
-                    _context.UserEmployees.Remove(existingUserEmp);
-                }
-            }
 
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        });
     }
 
     public async Task DeleteUserAsync(string username)
     {
-        using var transaction = await _context.Database.BeginTransactionAsync();
-        try
+        var strategy = _context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            var userEmp = await _context.UserEmployees.FirstOrDefaultAsync(ue => ue.UserName == username);
-            if (userEmp != null)
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                _context.UserEmployees.Remove(userEmp);
-            }
+                var userEmp = await _context.UserEmployees.FirstOrDefaultAsync(ue => ue.UserName == username);
+                if (userEmp != null)
+                {
+                    _context.UserEmployees.Remove(userEmp);
+                }
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Name == username);
-            if (user != null)
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Name == username);
+                if (user != null)
+                {
+                    _context.Users.Remove(user);
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
             {
-                _context.Users.Remove(user);
+                await transaction.RollbackAsync();
+                throw;
             }
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+        });
     }
 }

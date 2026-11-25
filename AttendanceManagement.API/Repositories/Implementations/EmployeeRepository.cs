@@ -170,41 +170,45 @@ public class EmployeeRepository : IEmployeeRepository
         string positionId,
         DateTime joinDate)
     {
-        using var transaction = await _context.Database.BeginTransactionAsync();
-        try
+        var strategy = _context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            // 1. Thêm bản ghi nhân viên
-            _context.Employees.Add(employee);
-            await _context.SaveChangesAsync();
-
-            // 2. Thêm bản ghi phòng ban ban đầu
-            var employeeDept = new EmployeeDepartment
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                EmployeeId = employee.Id,
-                DepartmentId = departmentId,
-                FromDate = joinDate,
-                ToDate = null
-            };
-            _context.EmployeeDepartments.Add(employeeDept);
+                // 1. Thêm bản ghi nhân viên
+                _context.Employees.Add(employee);
+                await _context.SaveChangesAsync();
 
-            // 3. Thêm bản ghi chức vụ ban đầu
-            var employeePos = new EmployeePosition
+                // 2. Thêm bản ghi phòng ban ban đầu
+                var employeeDept = new EmployeeDepartment
+                {
+                    EmployeeId = employee.Id,
+                    DepartmentId = departmentId,
+                    FromDate = joinDate,
+                    ToDate = null
+                };
+                _context.EmployeeDepartments.Add(employeeDept);
+
+                // 3. Thêm bản ghi chức vụ ban đầu
+                var employeePos = new EmployeePosition
+                {
+                    EmployeeId = employee.Id,
+                    PositionId = positionId,
+                    FromDate = joinDate,
+                    ToDate = null
+                };
+                _context.EmployeePositions.Add(employeePos);
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
             {
-                EmployeeId = employee.Id,
-                PositionId = positionId,
-                FromDate = joinDate,
-                ToDate = null
-            };
-            _context.EmployeePositions.Add(employeePos);
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+                await transaction.RollbackAsync();
+                throw;
+            }
+        });
     }
 
     public async Task UpdateEmployeeWithOrgAsync(
@@ -212,69 +216,73 @@ public class EmployeeRepository : IEmployeeRepository
         string? newDepartmentId,
         string? newPositionId)
     {
-        using var transaction = await _context.Database.BeginTransactionAsync();
-        try
+        var strategy = _context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            var now = DateTime.Now;
-
-            // 1. Cập nhật phòng ban nếu có thay đổi
-            if (!string.IsNullOrWhiteSpace(newDepartmentId))
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                var currentDept = await _context.EmployeeDepartments
-                    .Where(ed => ed.EmployeeId == employee.Id && ed.ToDate == null)
-                    .OrderByDescending(ed => ed.FromDate)
-                    .FirstOrDefaultAsync();
+                var now = DateTime.Now;
 
-                if (currentDept == null || currentDept.DepartmentId != newDepartmentId)
+                // 1. Cập nhật phòng ban nếu có thay đổi
+                if (!string.IsNullOrWhiteSpace(newDepartmentId))
                 {
-                    if (currentDept != null)
+                    var currentDept = await _context.EmployeeDepartments
+                        .Where(ed => ed.EmployeeId == employee.Id && ed.ToDate == null)
+                        .OrderByDescending(ed => ed.FromDate)
+                        .FirstOrDefaultAsync();
+
+                    if (currentDept == null || currentDept.DepartmentId != newDepartmentId)
                     {
-                        currentDept.ToDate = now;
+                        if (currentDept != null)
+                        {
+                            currentDept.ToDate = now;
+                        }
+
+                        _context.EmployeeDepartments.Add(new EmployeeDepartment
+                        {
+                            EmployeeId = employee.Id,
+                            DepartmentId = newDepartmentId,
+                            FromDate = now,
+                            ToDate = null
+                        });
                     }
-
-                    _context.EmployeeDepartments.Add(new EmployeeDepartment
-                    {
-                        EmployeeId = employee.Id,
-                        DepartmentId = newDepartmentId,
-                        FromDate = now,
-                        ToDate = null
-                    });
                 }
-            }
 
-            // 2. Cập nhật chức vụ nếu có thay đổi
-            if (!string.IsNullOrWhiteSpace(newPositionId))
+                // 2. Cập nhật chức vụ nếu có thay đổi
+                if (!string.IsNullOrWhiteSpace(newPositionId))
+                {
+                    var currentPos = await _context.EmployeePositions
+                        .Where(ep => ep.EmployeeId == employee.Id && ep.ToDate == null)
+                        .OrderByDescending(ep => ep.FromDate)
+                        .FirstOrDefaultAsync();
+
+                    if (currentPos == null || currentPos.PositionId != newPositionId)
+                    {
+                        if (currentPos != null)
+                        {
+                            currentPos.ToDate = now;
+                        }
+
+                        _context.EmployeePositions.Add(new EmployeePosition
+                        {
+                            EmployeeId = employee.Id,
+                            PositionId = newPositionId,
+                            FromDate = now,
+                            ToDate = null
+                        });
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
             {
-                var currentPos = await _context.EmployeePositions
-                    .Where(ep => ep.EmployeeId == employee.Id && ep.ToDate == null)
-                    .OrderByDescending(ep => ep.FromDate)
-                    .FirstOrDefaultAsync();
-
-                if (currentPos == null || currentPos.PositionId != newPositionId)
-                {
-                    if (currentPos != null)
-                    {
-                        currentPos.ToDate = now;
-                    }
-
-                    _context.EmployeePositions.Add(new EmployeePosition
-                    {
-                        EmployeeId = employee.Id,
-                        PositionId = newPositionId,
-                        FromDate = now,
-                        ToDate = null
-                    });
-                }
+                await transaction.RollbackAsync();
+                throw;
             }
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+        });
     }
 
     public async Task<bool> HasDependentDataAsync(int id)
@@ -300,45 +308,49 @@ public class EmployeeRepository : IEmployeeRepository
 
     public async Task DeleteEmployeeAsync(int id)
     {
-        using var transaction = await _context.Database.BeginTransactionAsync();
-        try
+        var strategy = _context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            // 1. Xóa liên kết tài khoản nếu có
-            var userEmployees = await _context.UserEmployees.Where(ue => ue.EmployeeId == id).ToListAsync();
-            if (userEmployees.Count != 0)
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                _context.UserEmployees.RemoveRange(userEmployees);
-            }
+                // 1. Xóa liên kết tài khoản nếu có
+                var userEmployees = await _context.UserEmployees.Where(ue => ue.EmployeeId == id).ToListAsync();
+                if (userEmployees.Count != 0)
+                {
+                    _context.UserEmployees.RemoveRange(userEmployees);
+                }
 
-            // 2. Xóa lịch sử phòng ban
-            var deptHistories = await _context.EmployeeDepartments.Where(ed => ed.EmployeeId == id).ToListAsync();
-            if (deptHistories.Count != 0)
+                // 2. Xóa lịch sử phòng ban
+                var deptHistories = await _context.EmployeeDepartments.Where(ed => ed.EmployeeId == id).ToListAsync();
+                if (deptHistories.Count != 0)
+                {
+                    _context.EmployeeDepartments.RemoveRange(deptHistories);
+                }
+
+                // 3. Xóa lịch sử chức vụ
+                var posHistories = await _context.EmployeePositions.Where(ep => ep.EmployeeId == id).ToListAsync();
+                if (posHistories.Count != 0)
+                {
+                    _context.EmployeePositions.RemoveRange(posHistories);
+                }
+
+                // 4. Xóa nhân viên
+                var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == id);
+                if (employee != null)
+                {
+                    _context.Employees.Remove(employee);
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
             {
-                _context.EmployeeDepartments.RemoveRange(deptHistories);
+                await transaction.RollbackAsync();
+                throw;
             }
-
-            // 3. Xóa lịch sử chức vụ
-            var posHistories = await _context.EmployeePositions.Where(ep => ep.EmployeeId == id).ToListAsync();
-            if (posHistories.Count != 0)
-            {
-                _context.EmployeePositions.RemoveRange(posHistories);
-            }
-
-            // 4. Xóa nhân viên
-            var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == id);
-            if (employee != null)
-            {
-                _context.Employees.Remove(employee);
-            }
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-        }
-        catch
-        {
-            await transaction.RollbackAsync();
-            throw;
-        }
+        });
     }
 }
 
